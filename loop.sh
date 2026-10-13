@@ -6,7 +6,7 @@
 #   ./loop.sh [iterations]            # default 5
 #
 # Knobs (environment variables):
-#   TARGET_DIR      target repo (default ./example_target)
+#   TARGET_DIR      target repo (default ./work/example_target, a git working copy)
 #   TARGET_PKG      python package to measure coverage of (default calcpkg)
 #   AGENT_MODEL     model id for claude -p (default claude-sonnet-5)
 #   AGENT_CAN_TEST  1 = agent may run pytest itself, 0 = desk-check only (default 0)
@@ -23,7 +23,7 @@ cd "$(dirname "$0")"
 HARNESS_DIR="$(pwd)"
 
 ITERATIONS="${1:-5}"
-TARGET_DIR="${TARGET_DIR:-$HARNESS_DIR/example_target}"
+TARGET_DIR="${TARGET_DIR:-$HARNESS_DIR/work/example_target}"
 export TARGET_DIR TARGET_PKG="${TARGET_PKG:-calcpkg}"
 AGENT_MODEL="${AGENT_MODEL:-claude-sonnet-5}"
 AGENT_CAN_TEST="${AGENT_CAN_TEST:-0}"

@@ -12,7 +12,7 @@ set -u
 cd "$(dirname "$0")"
 HARNESS_DIR="$(pwd)"
 
-TARGET_DIR="${TARGET_DIR:-$HARNESS_DIR/example_target}"
+TARGET_DIR="${TARGET_DIR:-$HARNESS_DIR/work/example_target}"
 PKG="${TARGET_PKG:-calcpkg}"
 PY="$HARNESS_DIR/.venv/bin/python"
 TEST_TIMEOUT="${TEST_TIMEOUT:-300}"
@@ -70,11 +70,15 @@ done
 
 # ---- Run the tests with coverage ------------------------------
 rm -f coverage.json .coverage
-timeout "$TEST_TIMEOUT" "$PY" -m pytest -q -p no:cacheprovider \
+# Portable timeout (macOS has no `timeout` binary): run pytest in the
+# background and kill it if it outlives TEST_TIMEOUT seconds.
+"$PY" -m pytest -q -p no:cacheprovider \
   --cov="$PKG" --cov-report=json:coverage.json --cov-report=term-missing:skip-covered \
-  tests > .last_test_output.txt 2>&1
-RC=$?
-if [ "$RC" -eq 124 ]; then fail "tests timed out after ${TEST_TIMEOUT}s"; fi
+  tests > .last_test_output.txt 2>&1 &
+TPID=$!; T0=$(date +%s)
+while kill -0 "$TPID" 2>/dev/null && [ $(( $(date +%s) - T0 )) -lt "$TEST_TIMEOUT" ]; do sleep 1; done
+if kill -0 "$TPID" 2>/dev/null; then kill "$TPID" 2>/dev/null; wait "$TPID" 2>/dev/null; fail "tests timed out after ${TEST_TIMEOUT}s"; fi
+wait "$TPID"; RC=$?
 if [ "$RC" -ne 0 ]; then
   echo "JUDGE FAIL: tests failed (pytest exit $RC):"
   grep -E '^(FAILED|ERROR)' .last_test_output.txt | head -10 | sed 's/^/JUDGE FAIL:   /'

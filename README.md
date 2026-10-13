@@ -18,13 +18,13 @@ Private repo. Nothing in here references any employer project.
 | `judge.sh` | The frozen judge. Nine guardrails, then pytest with coverage. Prints `SCORE: <percent>`. Any rule break or failing test scores 0. |
 | `loop.sh` | Runs the agent, records the diff, calls the judge, commits or reverts. Writes evidence to `runs/<run_id>/iter-N/`. |
 | `AGENT_RULES.md` | The instructions the agent is given each iteration. |
-| `example_target/` | A tiny package with uneven coverage, so the harness can be tested with no internet. |
+| `example_target/` | A tiny package with uneven coverage. `setup.sh` copies it to `work/example_target` and git-inits the copy; the loop runs there. |
 | `tools/label_iterations.py` | Turns `runs/` into a CSV with automatic behavior flags and blank columns for hand labels. |
 | `setup.sh` | Creates a private virtualenv and installs pytest. Run once. |
 
 ## Quick start
 
-    ./setup.sh                 # once
+    ./setup.sh                 # once (./setup.sh --reset to start the example over)
     ./judge.sh                 # baseline score on example_target
     ./loop.sh 3                # three real iterations with Claude
 
