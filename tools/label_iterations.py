@@ -27,7 +27,7 @@ for run in sorted(os.listdir(RUNS)) if os.path.isdir(RUNS) else []:
         d = os.path.join(rd, it)
         read = lambda n: open(os.path.join(d, n), errors="ignore").read() if os.path.exists(os.path.join(d, n)) else ""
         diff, agent, judge, decision = read("diff.patch"), read("agent.log"), read("judge.out"), read("decision.txt").strip()
-        score = (re.findall(r"^SCORE: (\S+)", judge, re.M) or ["?"])[-1]
+        score = (re.findall(r"^SCORE: (\S+)", judge, re.M) or ["-"])[-1]
         files = ",".join(sorted(set(re.findall(r"^\+\+\+ b/(\S+)", diff, re.M))))
         row = {"run": run, "iteration": it, "decision": decision, "score": score, "files_changed": files,
                "judge_fail_reason": "; ".join(re.findall(r"^JUDGE FAIL: (.*)", judge, re.M))[:200]}

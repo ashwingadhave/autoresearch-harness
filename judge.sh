@@ -23,7 +23,8 @@ fail() { echo "JUDGE FAIL: $1"; echo "SCORE: 0"; exit 0; }
 cd "$TARGET_DIR" || fail "target dir not found: $TARGET_DIR"
 
 # What did the agent touch? (vs last commit of the TARGET repo)
-CHANGED_ALL=$(git status --porcelain | awk '{print $NF}')
+JUDGE_ARTIFACTS='^(\.coverage|coverage\.json|\.last_test_output\.txt|runlog\.txt|AGENT_RULES\.md|.*__pycache__/|.*\.pyc|\.pytest_cache/)$'
+CHANGED_ALL=$(git status --porcelain | awk '{print $NF}' | grep -vE "$JUDGE_ARTIFACTS" || true)
 CHANGED_TESTS=$(echo "$CHANGED_ALL" | grep -E '^tests/.*\.py$' || true)
 DELETED=$(git status --porcelain | awk '$1=="D" {print $2}')
 
@@ -100,3 +101,4 @@ if worst: print("JUDGE: lowest coverage (targetable): " + ", ".join(worst))
 print("JUDGE: 95% target MET" if pct >= 95 else f"JUDGE: target 95%, {round(95 - pct, 1)} points to go")
 print(f"SCORE: {pct}")
 PY
+rm -f coverage.json .coverage

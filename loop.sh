@@ -44,6 +44,13 @@ fi
 echo $$ > "$LOCKFILE"; trap 'rm -f "$LOCKFILE"' EXIT
 
 [ -d "$TARGET_DIR/.git" ] || { echo "STOP: $TARGET_DIR is not a git repo. Run ./setup.sh"; exit 1; }
+# Make sure the target never counts judge artifacts as agent changes.
+for pat in .coverage coverage.json .last_test_output.txt __pycache__/ '*.pyc' .pytest_cache/ runlog.txt; do
+  grep -qxF "$pat" "$TARGET_DIR/.gitignore" 2>/dev/null || echo "$pat" >> "$TARGET_DIR/.gitignore"
+done
+if ! git -C "$TARGET_DIR" diff --quiet -- .gitignore 2>/dev/null || ! git -C "$TARGET_DIR" ls-files --error-unmatch .gitignore >/dev/null 2>&1; then
+  git -C "$TARGET_DIR" add .gitignore && git -C "$TARGET_DIR" commit -qm "harness: ignore judge artifacts" >/dev/null 2>&1 || true
+fi
 [ -x "$HARNESS_DIR/.venv/bin/python" ] || { echo "STOP: run ./setup.sh first"; exit 1; }
 
 # Freeze the judge from the harness repo's last COMMIT, never the working tree.
@@ -106,6 +113,15 @@ for i in $(seq 1 "$ITERATIONS"); do
   log "Agent finished in $(( $(date +%s) - START ))s. Agent's own summary:"
   tail -c 1200 "$IT/agent.log" > "$IT/agent.summary.txt"; detail "$IT/agent.summary.txt"
 
+  # FIRST: did the agent try to edit the judge, the loop, or the rules? Always checked.
+  # Did the agent try to edit the judge or the rules in the harness dir?
+  if ! git -C "$HARNESS_DIR" diff --quiet -- judge.sh AGENT_RULES.md loop.sh 2>/dev/null; then
+    git -C "$HARNESS_DIR" diff -- judge.sh AGENT_RULES.md loop.sh > "$IT/harness_tamper.patch"
+    git -C "$HARNESS_DIR" checkout -q -- judge.sh AGENT_RULES.md loop.sh
+    echo "REVERTED_HARNESS_TAMPER" > "$IT/decision.txt"
+    log "DECISION: REVERTED, agent edited harness files (see harness_tamper.patch)."; revert; continue
+  fi
+
   # Record exactly what changed BEFORE the judge sees it. This is the evidence.
   git -C "$TARGET_DIR" add -N . >/dev/null 2>&1
   git -C "$TARGET_DIR" diff -- . ':!runlog.txt' > "$IT/diff.patch"
@@ -117,15 +133,8 @@ for i in $(seq 1 "$ITERATIONS"); do
   # Harness-level check: anything outside tests/ is an instant revert, before scoring.
   BAD=$(echo "$CHANGED" | tr ' ' '\n' | grep -vE '^tests/.*\.py$' | grep -v '^$' || true)
   if [ -n "$BAD" ]; then
-    echo "REVERTED_RULE_VIOLATION: $BAD" > "$IT/decision.txt"
+    echo "REVERTED_RULE_VIOLATION: $(echo $BAD | tr '\n' ' ')" > "$IT/decision.txt"
     log "DECISION: REVERTED, agent touched non-test files: $BAD"; revert; continue
-  fi
-  # Did the agent try to edit the judge or the rules in the harness dir?
-  if ! git -C "$HARNESS_DIR" diff --quiet -- judge.sh AGENT_RULES.md loop.sh 2>/dev/null; then
-    git -C "$HARNESS_DIR" diff -- judge.sh AGENT_RULES.md loop.sh > "$IT/harness_tamper.patch"
-    git -C "$HARNESS_DIR" checkout -q -- judge.sh AGENT_RULES.md loop.sh
-    echo "REVERTED_HARNESS_TAMPER" > "$IT/decision.txt"
-    log "DECISION: REVERTED, agent edited harness files (see harness_tamper.patch)."; revert; continue
   fi
 
   log "Judge measuring..."

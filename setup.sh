@@ -12,6 +12,16 @@ echo "OK: tools installed in $(pwd)/.venv"
 if [ "${1:-}" = "--reset" ]; then rm -rf work/example_target; fi
 if [ ! -d work/example_target/.git ]; then
   mkdir -p work && rm -rf work/example_target && cp -R example_target work/example_target
+  cat > work/example_target/.gitignore <<'IGN'
+# judge artifacts, never count as agent changes
+.coverage
+coverage.json
+.last_test_output.txt
+__pycache__/
+*.pyc
+.pytest_cache/
+runlog.txt
+IGN
   ( cd work/example_target && git init -q && git add -A && git commit -qm "baseline" )
   echo "OK: working copy created at work/example_target (its own git repo)"
 fi
