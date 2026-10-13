@@ -55,8 +55,11 @@ target's own dependencies into `.venv` first (`./.venv/bin/pip install -e /path/
       EXPERIMENT_LOG.md      human-readable story of the run
       baseline.judge.out     judge output before any change
       iter-1/
-        agent.log            everything the agent printed
-        agent.summary.txt    its last 1,200 characters, its own account of what it did
+        agent.jsonl          the full transcript: every message and every tool call
+        agent.log            only the text the agent wrote, in order
+        agent.tools.txt      every tool call on one line each (Read, Edit, Bash ...)
+        agent.stats.json     turns, tool calls, cost in dollars, duration
+        agent.summary.txt    the last 1,200 characters of agent.log, its own account
         diff.patch           exactly what it changed, captured before the judge ran
         judge.out            the judge's verdict and reasons
         decision.txt         KEPT / REVERTED_* / SKIPPED_* / TIMEOUT

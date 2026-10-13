@@ -15,7 +15,8 @@
 #   RUN_ID          name of this run's folder under runs/ (default timestamp)
 #
 # Every iteration leaves evidence in runs/<RUN_ID>/iter-N/:
-#   agent.log, diff.patch, judge.out, decision.txt
+#   agent.jsonl (full transcript), agent.log (its narration), agent.tools.txt
+#   (every tool call), agent.stats.json, diff.patch, judge.out, decision.txt
 # That folder is the research artifact. Label it with tools/label_iterations.py.
 # ============================================================
 set -u
@@ -102,7 +103,8 @@ for i in $(seq 1 "$ITERATIONS"); do
     ( cd "$TARGET_DIR" && bash -c "$AGENT_CMD" ) > "$IT/agent.log" 2>&1 &
   else
     ( cd "$TARGET_DIR" && claude -p "$PROMPT" --model "$AGENT_MODEL" \
-        --allowedTools "$TOOLS" --permission-mode acceptEdits < /dev/null ) > "$IT/agent.log" 2>&1 &
+        --allowedTools "$TOOLS" --permission-mode acceptEdits \
+        --output-format stream-json --verbose < /dev/null ) > "$IT/agent.jsonl" 2>"$IT/agent.stderr" &
   fi
   PID=$!
   while kill -0 "$PID" 2>/dev/null && [ $(( $(date +%s) - START )) -lt "$AGENT_TIMEOUT" ]; do sleep 3; done
@@ -110,12 +112,15 @@ for i in $(seq 1 "$ITERATIONS"); do
     kill "$PID" 2>/dev/null; echo "TIMEOUT" > "$IT/decision.txt"
     log "DECISION: SKIPPED, agent still running after ${AGENT_TIMEOUT}s. Reverted."; revert; continue
   fi
-  log "Agent finished in $(( $(date +%s) - START ))s. Agent's own summary:"
+  if [ -f "$IT/agent.jsonl" ]; then
+    STATS=$("$HARNESS_DIR/.venv/bin/python" "$HARNESS_DIR/tools/extract_transcript.py" "$IT/agent.jsonl" 2>/dev/null || echo "transcript parse failed")
+  else STATS="(dry run, no transcript)"; fi
+  log "Agent finished in $(( $(date +%s) - START ))s. $STATS. Agent's own summary:"
   tail -c 1200 "$IT/agent.log" > "$IT/agent.summary.txt"; detail "$IT/agent.summary.txt"
 
   # Record exactly what changed BEFORE the judge sees it. This is the evidence.
   git -C "$TARGET_DIR" add -N . >/dev/null 2>&1
-  git -C "$TARGET_DIR" diff -- . ':!runlog.txt' > "$IT/diff.patch"
+  git -C "$TARGET_DIR" diff -- . > "$IT/diff.patch"
   git -C "$TARGET_DIR" reset -q >/dev/null 2>&1
   # FIRST: did the agent try to edit the judge, the loop, or the rules? Always checked.
   # Did the agent try to edit the judge or the rules in the harness dir?
@@ -126,7 +131,7 @@ for i in $(seq 1 "$ITERATIONS"); do
     log "DECISION: REVERTED, agent edited harness files (see harness_tamper.patch)."; revert; continue
   fi
 
-  CHANGED=$(git -C "$TARGET_DIR" status --porcelain -- . ':!runlog.txt' | awk '{print $NF}' | tr '\n' ' ')
+  CHANGED=$(git -C "$TARGET_DIR" status --porcelain | awk '{print $NF}' | tr '\n' ' ')
   log "Files changed: ${CHANGED:-(none)}"
   if [ -z "${CHANGED// /}" ]; then echo "SKIPPED_NO_CHANGE" > "$IT/decision.txt"; log "DECISION: SKIPPED, agent changed nothing."; continue; fi
 
@@ -141,7 +146,7 @@ for i in $(seq 1 "$ITERATIONS"); do
   NEW=$(score "$IT/judge.out"); judge_details "$IT/judge.out"
   log "Judge verdict: $NEW (previous best: $BEST)"
   if "$HARNESS_DIR/.venv/bin/python" -c "import sys; sys.exit(0 if float('$NEW') > float('$BEST') else 1)"; then
-    git -C "$TARGET_DIR" add -A -- . ':!runlog.txt'
+    git -C "$TARGET_DIR" add -A
     git -C "$TARGET_DIR" commit -qm "autoresearch: coverage $BEST -> $NEW (run $RUN_ID iter $i)"
     echo "KEPT $BEST -> $NEW" > "$IT/decision.txt"; log "DECISION: KEPT, $BEST -> $NEW. Committed."; BEST="$NEW"
   else
