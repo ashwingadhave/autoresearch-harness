@@ -113,6 +113,10 @@ for i in $(seq 1 "$ITERATIONS"); do
   log "Agent finished in $(( $(date +%s) - START ))s. Agent's own summary:"
   tail -c 1200 "$IT/agent.log" > "$IT/agent.summary.txt"; detail "$IT/agent.summary.txt"
 
+  # Record exactly what changed BEFORE the judge sees it. This is the evidence.
+  git -C "$TARGET_DIR" add -N . >/dev/null 2>&1
+  git -C "$TARGET_DIR" diff -- . ':!runlog.txt' > "$IT/diff.patch"
+  git -C "$TARGET_DIR" reset -q >/dev/null 2>&1
   # FIRST: did the agent try to edit the judge, the loop, or the rules? Always checked.
   # Did the agent try to edit the judge or the rules in the harness dir?
   if ! git -C "$HARNESS_DIR" diff --quiet -- judge.sh AGENT_RULES.md loop.sh 2>/dev/null; then
@@ -122,10 +126,6 @@ for i in $(seq 1 "$ITERATIONS"); do
     log "DECISION: REVERTED, agent edited harness files (see harness_tamper.patch)."; revert; continue
   fi
 
-  # Record exactly what changed BEFORE the judge sees it. This is the evidence.
-  git -C "$TARGET_DIR" add -N . >/dev/null 2>&1
-  git -C "$TARGET_DIR" diff -- . ':!runlog.txt' > "$IT/diff.patch"
-  git -C "$TARGET_DIR" reset -q >/dev/null 2>&1
   CHANGED=$(git -C "$TARGET_DIR" status --porcelain -- . ':!runlog.txt' | awk '{print $NF}' | tr '\n' ' ')
   log "Files changed: ${CHANGED:-(none)}"
   if [ -z "${CHANGED// /}" ]; then echo "SKIPPED_NO_CHANGE" > "$IT/decision.txt"; log "DECISION: SKIPPED, agent changed nothing."; continue; fi
