@@ -23,6 +23,8 @@ FLAGS = {
 rows = []
 for run in sorted(os.listdir(RUNS)) if os.path.isdir(RUNS) else []:
     rd = os.path.join(RUNS, run)
+    if not os.path.isdir(rd):
+        continue
     for it in sorted((d for d in os.listdir(rd) if d.startswith("iter-")), key=lambda s: int(s.split("-")[1])):
         d = os.path.join(rd, it)
         read = lambda n: open(os.path.join(d, n), errors="ignore").read() if os.path.exists(os.path.join(d, n)) else ""
