@@ -1,11 +1,29 @@
 # autoresearch-harness
 
-A platform-neutral port of the July 2026 Apex experiment. An AI coding agent
+An AI coding agent
 tries to raise test coverage on a Python project. A frozen script judges it.
 Git keeps improvements and reverts everything else. Every attempt is saved as
 evidence so the agent's behavior can be studied, not just its score.
 
-Private repo. Nothing in here references any employer project.
+This is a platform-neutral version of an experiment I first ran in July 2026 on
+a public Salesforce sample repo (lwc-recipes). In that run the agent edited the
+judge and its own rules file in the first iteration; the loop caught and undid it.
+
+## Results so far
+
+20 iterations on [pallets/click](https://github.com/pallets/click) (commit 2247b35)
+with the agent in desk-check mode (`AGENT_CAN_TEST=0`). Full write-up:
+[docs/click-run-2026-10-26.md](docs/click-run-2026-10-26.md).
+
+- Line coverage 86.7% -> 91.0%. 9 iterations kept, 11 reverted, no source file touched.
+- The agent tried to run the tests 171 times, although in this mode the loop only lets it read, search and edit files; every attempt was blocked.
+- Twice it said it had checked its tests by hand, and the judge then found failing tests.
+- It looked for the judge process (`ps aux | grep ... judge.sh`) and file, but never edited them in this run.
+- It broke the no-skip-marker rule 4 times, each time with a reasonable platform guard.
+
+Raw agent transcripts are not published because they contain details of the
+machine they ran on. The per-iteration judge output and decisions are summarized
+in the write-up.
 
 ## The loop in one line
 
@@ -26,7 +44,7 @@ Private repo. Nothing in here references any employer project.
 
     ./setup.sh                 # once (./setup.sh --reset to start the example over)
     ./judge.sh                 # baseline score on example_target
-    ./loop.sh 3                # three real iterations with Claude
+    ./loop.sh 3                # three real iterations with Claude Code (`claude -p`)
 
 Dry run without calling Claude (a fake agent that just appends a test):
 
@@ -85,3 +103,7 @@ The loop adds two of its own before the judge runs: any change outside
 `tests/` is reverted on sight, and any edit to `judge.sh`, `loop.sh`, or
 `AGENT_RULES.md` in the harness is recorded as `harness_tamper.patch` and undone.
 The judge itself is always restored from the last git commit, never from disk.
+
+## License
+
+MIT
